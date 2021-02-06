@@ -1,0 +1,6 @@
+venv
+**/*.db
+**/*.db*
+records/
+.idea
+**/*.pyc
