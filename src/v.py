@@ -11,7 +11,6 @@ import datetime
 import traceback
 from db.db import *
 
-CURRENT_DIR=os.path.dirname(os.path.realpath(__file__))
 REQUEST_CONN_TIMEOUT = 10
 REQUEST_READ_TIMEOUT = 60 * 60
 HIT_RATE_RECORD_DIR=os.path.join(CURRENT_DIR, "../records")
@@ -57,25 +56,6 @@ USER_ID_LIST = {32533, 1331, 15271, 14882, 22392, 157, 2047, 2010, 2012, 2267, 4
 
 
 
-def createLogger(stdout=True):
-    formatter = "%(asctime)s [%(levelname)s]\t%(module)s:%(lineno)d\t%(message)s"
-
-    handler = None
-    appName = "VStation"
-    logger = logging.getLogger(appName)
-    if (stdout is False):
-        handler = logging.FileHandler(CURRENT_DIR + "/" + appName + ".log")
-        logger.setLevel(logging.DEBUG)
-    else:
-        handler = logging.StreamHandler(sys.stdout)
-        logger.setLevel(logging.DEBUG)
-
-    handler.setFormatter(logging.Formatter(formatter))
-    logger.addHandler(handler)
-    return logger
-
-
-log=createLogger()
 
 
 def encodeUri(str):
@@ -93,15 +73,16 @@ def parse_user_predicate_list(userId, nick_name):
     log.info(f"User predict response: {res.text}")
     resJson = res.json()
     overMatchList = resJson["data"]["over_list"]
-    for overMatch in overMatchList:
+    for idx, overMatch in enumerate(overMatchList):
         match = Match()  # type: Match
         match.user_nick_name = nick_name
-        match.user_id = userId
-        parse_overmatch(match, overMatch)
+        log.info(f"Overmatch idx: {idx}")
+        parse_overmatch(userId, match, overMatch)
         save_match(match)
 
     user= User() # type: User
     author = overMatchList[0]["author"]
+    user.id = author['uid']
     user.hit_rate = author["hit_rate"]
     hit_rate_desc=author["hit_rate_desc"]
     idx1= hit_rate_desc.index("近")
@@ -113,17 +94,16 @@ def parse_user_predicate_list(userId, nick_name):
     user.date=date
     save_user(user)
 
-def parse_overmatch(match:Match, overMatch):
-    article_url = overMatch['article_url']
-    match.article_url = article_url
-    idx=0
-    for match_info in overMatch['match_info']:
-        parse_match_info(match, match_info, idx)
-        idx=idx+1
+def parse_overmatch(userId:str, match:Match, overMatch):
+    match.article_id = overMatch['article_id']
+    match.article_url = overMatch['article_url']
+    for idx, match_info in enumerate(overMatch['match_info']):
+        parse_match_info(userId, match, match_info, idx)
 
-def parse_match_info(match:Match, matchInfo, idx):
+def parse_match_info(userId:str, match:Match, matchInfo, idx):
     base_info = matchInfo['base_info']
     match.id = base_info['match_id']
+    log.info(f"Match id: {match.id}, article_id: {match.article_id}")
     normal_score = base_info['normal_score']
     startTime = base_info['start_time']
     match.match_date = datetime.datetime.fromtimestamp(startTime)
@@ -135,8 +115,9 @@ def parse_match_info(match:Match, matchInfo, idx):
 
     predict = matchInfo['predict']
     matchPredict = Predict()
-    matchPredict.id=match.id+"_"+str(idx)
+    matchPredict.id=match.id+"_"+userId +"_"+str(idx)
     matchPredict.match_id=match.id
+    matchPredict.user_id=userId
     matchPredict.play_type = predict['play_type']
     matchPredict.predict_result = predict['predict_result']
     matchPredict.real_result = predict['real_result']
@@ -145,8 +126,8 @@ def parse_match_info(match:Match, matchInfo, idx):
     matchPredict.current_right = predict['current_right']
     matchPredict.current_middle = predict['current_middle']
     matchPredict.ovalue = predict['ovalue']
-    save_match()
-    match.predict.append(matchPredict)
+    save_predict(matchPredict)
+    # match.predict.append(matchPredict)
 
 
 def read_csv():
@@ -276,6 +257,8 @@ def main():
     refresh_user_info()
 
 if __name__ == '__main__':
+    # recreate_dbs()
     main()
+
     # parse_user_predicate_list(32533)
     # fetchUsers()
