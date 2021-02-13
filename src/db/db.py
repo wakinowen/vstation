@@ -12,6 +12,8 @@ DB_INSERT_STRATEGY_SKIP_INSERT_IF_EXIST="DB_INSERT_STRATEGY_SKIP_INSERT_IF_EXIST
 
 DB_INSERT_STRATEGY=DB_INSERT_STRATEGY_SKIP_INSERT_IF_EXIST
 
+DB_FILE_PATH="I:/Projects/V_Station/vstation.db"
+
 def createLogger(stdout=True):
     formatter = "%(asctime)s [%(levelname)s]\t%(module)s:%(lineno)d\t%(message)s"
 
@@ -37,11 +39,12 @@ def commit():
     dbConn.close()
 
 def get_db_conn():
-    conn = sqlite3.connect("../vstation.db")
+    conn = sqlite3.connect(DB_FILE_PATH, check_same_thread=False)
     atexit.register(commit)
     return conn
 
 dbConn = get_db_conn()
+dbConn.row_factory = sqlite3.Row
 cursor = dbConn.cursor()
 
 
@@ -54,11 +57,11 @@ class Match:
         self.tournament_name=None
         self.home_team_name=None
         self.away_team_name=None
-        self.article_id = None
+        # self.article_id = None
         self.article_url=None
         self.home_team_score=None
         self.away_team_score=None
-        self.predict=[]
+        self.predictList=[]
 
 
 class Predict:
@@ -87,15 +90,15 @@ class User:
 
 
 def recreate_dbs():
-    drop_tabls_match="drop table match"
-    drop_table_predict="drop table predict"
-    drop_table_user="drop table user"
-    cursor.execute(drop_tabls_match)
-    cursor.execute(drop_table_predict)
-    cursor.execute(drop_table_user)
     create_dbs()
 
 def create_dbs():
+    create_table_match()
+    create_table_predict()
+    create_table_user()
+
+def create_table_match():
+    cursor.execute("drop table match")
     create_table_match_sql = """
     create table match(
         id integer primary key autoincrement,
@@ -110,7 +113,10 @@ def create_dbs():
     )
     """
     cursor.execute(create_table_match_sql)
+    dbConn.commit()
 
+def create_table_predict():
+    cursor.execute("drop table predict")
     create_table_predict_sql = """
         create table predict(
             id varchar(256) primary key,
@@ -127,14 +133,17 @@ def create_dbs():
         )
         """
     cursor.execute(create_table_predict_sql)
+    dbConn.commit()
 
+def create_table_user():
+    cursor.execute("drop table user")
     create_table_user_sql = """
         create table user(
             id integer primary key autoincrement,
             nick_name varchar(256),
-            hit_rate varchar(256),
-            hit_cnt varchar(256),
-            total_cnt varchar(256),
+            hit_rate integer,
+            hit_cnt integer,
+            total_cnt integer,
             date datetime
         )
     """
@@ -167,6 +176,68 @@ def save_user(user:User):
             user.date
         ]
     )
+
+def convertDictToUser(userDict):
+    user = User()
+    user.id=userDict['id']
+    user.nick_name = userDict['nick_name']
+    user.hit_rate = userDict['hit_rate']
+    user.hit_cnt = userDict['hit_cnt']
+    user.total_cnt = userDict['total_cnt']
+    user.date = userDict['date']
+    return user
+
+def convertDictToMatch(matchDict):
+    match = Match()
+    match.id = matchDict['id']
+    match.match_date = matchDict['match_date']
+    match.user_nick_name = matchDict['user_nick_name']
+    match.tournament_name = matchDict['tournament_name']
+    match.home_team_name = matchDict['home_team_name']
+    match.away_team_name = matchDict['away_team_name']
+    # match.article_id = matchDict['article_id']
+    match.article_url = matchDict['article_url']
+    match.home_team_score = matchDict['home_team_score']
+    match.away_team_score = matchDict['away_team_score']
+    return match
+
+def convertDictToPredict(predictDict):
+    predict = Predict()
+    predict.id = predictDict['id']
+    predict.match_id = predictDict['match_id']
+    predict.user_id = predictDict['user_id']
+    predict.play_type = predictDict['play_type']
+    predict.predict_result = predictDict['predict_result']
+    predict.real_result = predictDict['real_result']
+    predict.is_hit = predictDict['is_hit']
+    predict.current_left = predictDict['current_left']
+    predict.current_right = predictDict['current_right']
+    predict.current_middle = predictDict['current_middle']
+    predict.ovalue = predictDict['ovalue']
+    return predict
+
+def fetchUserList():
+    sql="select * from User order by hit_rate desc"
+    userDictList = fetch_all(sql)
+    userList = [convertDictToUser(userDict) for userDict in userDictList]
+    return userList
+
+def fetchUser(userId):
+    sql="select * from User where id=?"
+    userDict = fetch_all(sql, [userId])[0]
+    return convertDictToUser(userDict)
+
+def fetchMatchList(userNickName):
+    sql="select * from match where user_nick_name=? order by match_date"
+    matchDictList = fetch_all(sql, [userNickName])
+    matchList = [convertDictToMatch(matchDict) for matchDict in matchDictList]
+    return matchList
+
+def fetchPredictList(matchId, userId):
+    sql="select * from predict where match_id=? and user_id=?"
+    predictDictList = fetch_all(sql, [matchId, userId])
+    predictList = [convertDictToPredict(predictDict) for predictDict in predictDictList]
+    return predictList
 
 def save_match(match:Match):
     if DB_INSERT_STRATEGY == DB_INSERT_STRATEGY_DELETE_THEN_INSERT:
@@ -253,7 +324,7 @@ def fetch_all(sql, param=None):
             cursor.execute(sql)
         else:
             cursor.execute(sql, param)
-        result = cursor.fetchall()
+        result = [dict(row) for row in cursor.fetchall()]
         return result
     except sqlite3.IntegrityError as sie:
         log.error("IntegrityError issue: "+traceback.format_exc())

@@ -1,0 +1,196 @@
+<html>
+  <head>
+    <title>V Station</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css?family=Roboto:300,400" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl" crossorigin="anonymous">
+
+<!--    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"/>-->
+<!--    <link rel="stylesheet" href="{{ url_for('static', filename='mdcharts/css/mdb.min.css') }}"/>-->
+
+    <!-- Font Awesome -->
+<!--    <link-->
+<!--    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css"-->
+<!--    rel="stylesheet"-->
+<!--    />-->
+<!--    &lt;!&ndash; Google Fonts &ndash;&gt;-->
+<!--    <link-->
+<!--    href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"-->
+<!--    rel="stylesheet"-->
+<!--    />-->
+<!--    &lt;!&ndash; MDB &ndash;&gt;-->
+<!--    <link-->
+<!--    href="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/3.2.0/mdb.min.css"-->
+<!--    rel="stylesheet"-->
+<!--    />-->
+
+  </head>
+  <body style="font-family: 'Roboto', sans-serif !important;">
+  <br>
+  <span>User Info</span>
+  <table class="table table-striped">
+        <thead class="thead-dark">
+            <tr>
+                <th scope="col">nick_name</th>
+                <th scope="col">hit_rate</th>
+                <th scope="col">hit_cnt</th>
+                <th scope="col">total_cnt</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>{{ user.nick_name }}</td>
+                <td>{{ user.hit_rate }}</td>
+                <td>{{ user.hit_cnt }}</td>
+                <td>{{ user.total_cnt }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+  <br>
+  <span>Chart Info</span>
+  <canvas id="myChart" height="50"></canvas>
+
+  <br>
+  <span>Match Info</span>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>match_date</th>
+        <th>tournament_name</th>
+        <th>home_team_name</th>
+        <th>score</th>
+        <th>away_team_name</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for match in matchList %}
+      <tr>
+        <td>{{ match.match_date }}</td>
+        <td>{{ match.tournament_name }}</td>
+        <td>{{ match.home_team_name }}</td>
+        <td>{{ match.home_team_score }}:{{ match.away_team_score }}</td>
+        <td>{{ match.away_team_name }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+<!--    <script type="text/javascript"  src="{{ url_for('static', filename='mdcharts/js/mdb.min.js') }}"></script>-->
+<!--  <script-->
+<!--  type="text/javascript"-->
+<!--  src="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/3.2.0/mdb.min.js"-->
+<!--&gt;</script>-->
+  <script type="text/javascript" src="{{ url_for('static', filename='chartjs/Chart.js') }}" ></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/js/bootstrap.bundle.min.js" integrity="sha384-b5kHyXgcpbZJO/tY9Ul7kGkf1S0CWuKcCD38l8YkeH8z8QjE0GmW1gYU5S9FOnJ0" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.18.1/moment.min.js"></script>
+  <script type="text/javascript" >
+  var labels=[
+  {% for match in matchList %}
+  '{{str(match.match_date)[0:10]}}',
+  {% endfor %}
+  ]
+  var data= [
+  {% for match in matchList %}
+    {
+        y:'{{cal_total_hit_cnt(match)}}',
+        tournament_name:"{{match.tournament_name}}",
+        home_team:"{{match.home_team_name}}: {{match.home_team_score}}",
+        away_team:"{{match.away_team_name}}: {{match.away_team_score}}",
+        predictList:[
+        {% for idx, predict in enumerate(match.predictList) %}
+            {
+            play_type: '{{predict.play_type}}',
+            predict_result: '{{predict.predict_result}}',
+            real_result: '{{predict.real_result}}',
+            is_hit: '{{predict.is_hit}}',
+            current_left: '{{predict.current_left}}',
+            current_right: '{{predict.current_right}}',
+            current_middle: '{{predict.current_middle}}',
+            ovalue: '{{predict.ovalue}}'
+            },
+        {% endfor %}
+        ]
+    },
+  {% endfor %}
+  ]
+
+var ctx = document.getElementById('myChart').getContext('2d');
+var myChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'Hit Cnt',
+            fill: false,
+            borderColor:"rgb(75, 192, 192)",
+            lineTension:0,
+            data: data
+        }]
+    },
+    options: {
+        scales: {
+            yAxes: [{
+                ticks: {
+                    beginAtZero: true,
+                    stepSize: 1,
+                    min: 0,
+                    max: 4
+                }
+            }]
+        },
+        legendCallback: function(chart) {
+            alert(111);
+        },
+        tooltips: {
+            // Disable the on-canvas tooltip
+            enabled: true,
+            callbacks: {
+                title: function(tooltipItem, data) {
+                  return data['labels'][tooltipItem[0]['index']];
+                },
+                label: function(tooltipItem, data) {
+                    dataObj = data['datasets'][0]['data'][tooltipItem['index']];
+                    labelList = [dataObj['home_team'],dataObj['away_team']]
+                    predictList = dataObj['predictList']
+                    for (let i = 0; i < predictList.length; i++) {
+                        predict = predictList[i]
+                        labelList.push("----------------------")
+                        if (predict['play_type'] == '1'){
+                            var playTypeStr="正常";
+                        }else if(predict['play_type'] == '2'){
+                            var playTypeStr="让球 0.25";
+                        }else{
+                            var playTypeStr=predict['play_type'];
+                        }
+
+                        labelList.push('play_type: '+playTypeStr)
+                        labelList.push('predict_result: '+predict['predict_result'])
+                        labelList.push('real_result: '+predict['real_result'])
+                        if (predict['is_hit'] =='1'){
+                            var isHitStr="Yes";
+                        }else{
+                            var isHitStr="No";
+                        }
+                        labelList.push('is_hit: '+isHitStr)
+                        labelList.push('Home Odds: '+predict['current_left'])
+                        labelList.push('Away Odds: '+predict['current_right'])
+                        labelList.push('Draw Odds: '+predict['current_middle'])
+                        labelList.push('Ovalue: '+predict['ovalue'])
+                    }
+                    return labelList
+                },
+<!--                afterLabel: function(tooltipItem, data) {-->
+<!--                  var dataset = data['datasets'][0];-->
+<!--                  var percent = Math.round((dataset['data'][tooltipItem['index']] / dataset["_meta"][0]['total']) * 100)-->
+<!--                  return '(' + percent + '%)';-->
+<!--                }-->
+              },
+        }
+    }
+});
+  </script>
+
+  </body>
+</html>

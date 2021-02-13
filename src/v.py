@@ -67,12 +67,8 @@ def encodeUri(str):
 # log=createLogger()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-def parse_user_predicate_list(userId, nick_name):
-    listUserPredictUrl=LIST_USER_PREDICT_URL%userId
-    res = httpGet(listUserPredictUrl)
-    log.info(f"User predict response: {res.text}")
-    resJson = res.json()
-    overMatchList = resJson["data"]["over_list"]
+def _collect_user_match_info(userId, nick_name):
+    user, overMatchList = _collect_user_info(userId)
     for idx, overMatch in enumerate(overMatchList):
         match = Match()  # type: Match
         match.user_nick_name = nick_name
@@ -80,22 +76,31 @@ def parse_user_predicate_list(userId, nick_name):
         parse_overmatch(userId, match, overMatch)
         save_match(match)
 
-    user= User() # type: User
+
+def _collect_user_info(userId):
+    listUserPredictUrl = LIST_USER_PREDICT_URL % userId
+    res = httpGet(listUserPredictUrl)
+    log.info(f"User predict response: {res.text}")
+    resJson = res.json()
+    overMatchList = resJson["data"]["over_list"]
+
+    user = User()  # type: User
     author = overMatchList[0]["author"]
     user.id = author['uid']
     user.hit_rate = author["hit_rate"]
-    hit_rate_desc=author["hit_rate_desc"]
-    idx1= hit_rate_desc.index("近")
+    hit_rate_desc = author["hit_rate_desc"]
+    idx1 = hit_rate_desc.index("近")
     idx2 = hit_rate_desc.index("中")
-    user.total_cnt=hit_rate_desc[idx1+1:idx2]
-    user.hit_cnt=hit_rate_desc[idx2+1:]
-    user.nick_name=author["nick_name"]
+    user.total_cnt = hit_rate_desc[idx1 + 1:idx2]
+    user.hit_cnt = hit_rate_desc[idx2 + 1:]
+    user.nick_name = author["nick_name"]
     date = datetime.datetime.now().replace(microsecond=0)
-    user.date=date
+    user.date = date
     save_user(user)
+    return user, overMatchList
 
 def parse_overmatch(userId:str, match:Match, overMatch):
-    match.article_id = overMatch['article_id']
+    # match.article_id = overMatch['article_id']
     match.article_url = overMatch['article_url']
     for idx, match_info in enumerate(overMatch['match_info']):
         parse_match_info(userId, match, match_info, idx)
@@ -236,14 +241,21 @@ def fetchUsers():
 
 
 
-def refresh_user_info():
+def collect_user_match_info():
     for userId, nick_name in USER_ID_DICT2.items():
         try:
-            parse_user_predicate_list(userId, nick_name)
+            _collect_user_match_info(userId, nick_name)
         except Exception as e:
             # traceback.print_exc()
-            log.error("Failed to get user info for user "+str(userId)+": "+traceback.format_exc())
+            log.error("Failed to collect user and match info for user "+str(userId)+": "+traceback.format_exc())
 
+def collect_user_info():
+    for userId, nick_name in USER_ID_DICT2.items():
+        try:
+            _collect_user_info(userId)
+        except Exception as e:
+            # traceback.print_exc()
+            log.error("Failed to collect user info for user "+str(userId)+": "+traceback.format_exc())
 
 def init_db():
     current_file_dir = pathlib.Path(__file__).parent.absolute()
@@ -254,11 +266,12 @@ def init_db():
 def main():
     # init_csv()
     init_db()
-    refresh_user_info()
+    collect_user_match_info()
 
 if __name__ == '__main__':
-    # recreate_dbs()
-    main()
+    create_table_user()
+    collect_user_info()
+    # main()
 
     # parse_user_predicate_list(32533)
     # fetchUsers()

@@ -4,3 +4,4 @@ venv
 records/
 .idea
 **/*.pyc
+access_token.txt
