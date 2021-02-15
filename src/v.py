@@ -10,6 +10,7 @@ import sys
 import datetime
 import traceback
 from db.db import *
+from web import server
 
 REQUEST_CONN_TIMEOUT = 10
 REQUEST_READ_TIMEOUT = 60 * 60
@@ -17,12 +18,9 @@ HIT_RATE_RECORD_DIR=os.path.join(CURRENT_DIR, "../records")
 HIT_RATE_RECORD_FILE_PATH=os.path.join(HIT_RATE_RECORD_DIR, "hit_rate.csv")
 
 SEARCH_URSER_URL="https://mapi.shemen365.com/search/common?type=user&option=%s"
-LIST_USER_PREDICT_URL="https://mapi.shemen365.com/user/article/predict/list?uid=%s&page=1"
+LIST_USER_PREDICT_URL="https://mapi.shemen365.com/user/article/predict/list?uid=%s&page=%s"
 
 USER_ID_LIST=[]
-
-CSV_FIELDS = ["Name", "Date", "Hit_Rate", "Hit_Cnt", "Total_Cnt"]
-
 
 USER_ID_DICT = {'阿拉里奥': 32533, '乌戈': 1331, '克鲁格': 15271,
                 '海蒂': 14882, '伊安佩恩': 22392, '季风': 157, '乔伊娜': 2047,
@@ -54,15 +52,9 @@ USER_ID_DICT2 = {"32533": '阿拉里奥',
 USER_ID_LIST = {32533, 1331, 15271, 14882, 22392, 157, 2047, 2010, 2012, 2267, 4833, 29654, 2051, 15884, 28695, 28639,
                 13216, 28647, 25281}
 
-
-
-
-
 def encodeUri(str):
     # log.info("encoding %s"%str)
     return urllib.parse.quote(str, safe='~@#$&()*!+=:;,.?/\'');
-
-
 
 # log=createLogger()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -71,33 +63,53 @@ def _collect_user_match_info(userId, nick_name):
     user, overMatchList = _collect_user_info(userId)
     for idx, overMatch in enumerate(overMatchList):
         match = Match()  # type: Match
+        match.user_id=user.id
         match.user_nick_name = nick_name
         log.info(f"Overmatch idx: {idx}")
         parse_overmatch(userId, match, overMatch)
         save_match(match)
+    update_user(user)
 
-
-def _collect_user_info(userId):
-    listUserPredictUrl = LIST_USER_PREDICT_URL % userId
-    res = httpGet(listUserPredictUrl)
-    log.info(f"User predict response: {res.text}")
-    resJson = res.json()
-    overMatchList = resJson["data"]["over_list"]
-
-    user = User()  # type: User
-    author = overMatchList[0]["author"]
-    user.id = author['uid']
-    user.hit_rate = author["hit_rate"]
-    hit_rate_desc = author["hit_rate_desc"]
-    idx1 = hit_rate_desc.index("近")
-    idx2 = hit_rate_desc.index("中")
-    user.total_cnt = hit_rate_desc[idx1 + 1:idx2]
-    user.hit_cnt = hit_rate_desc[idx2 + 1:]
-    user.nick_name = author["nick_name"]
+def update_user(user:User):
+    predictList = fetchPredictListByUid(user.id)
+    hit_cnt=0
+    total_cnt=0
+    for predict in predictList:
+        total_cnt=total_cnt+1
+        if predict.is_hit=="1":
+            hit_cnt=hit_cnt+1
+    user.hit_cnt=hit_cnt
+    user.total_cnt=total_cnt
+    user.hit_rate=round(hit_cnt/total_cnt*100, 2)
     date = datetime.datetime.now().replace(microsecond=0)
     user.date = date
     save_user(user)
-    return user, overMatchList
+
+
+def _collect_user_info(userId):
+    totalOverMatchList=[]
+    userInited=False
+    for pageNum in range(1,4):
+        listUserPredictUrl = LIST_USER_PREDICT_URL % (userId, str(pageNum))
+        res = httpGet(listUserPredictUrl)
+        log.info(f"User predict response: {res.text}")
+        resJson = res.json()
+        overMatchList = resJson["data"]["over_list"]
+        if len(overMatchList)==0:
+            log.info(f"Page {pageNum} is empty")
+            break
+        if not userInited:
+            author = overMatchList[0]["author"]
+            userId = author['uid']
+            user = fetchUser(userId)
+            if user is None:
+                user = User()  # type: User
+                user.id = author['uid']
+                user.nick_name = author["nick_name"]
+            userInited = True
+        totalOverMatchList.extend(overMatchList)
+
+    return user, totalOverMatchList
 
 def parse_overmatch(userId:str, match:Match, overMatch):
     # match.article_id = overMatch['article_id']
@@ -108,7 +120,7 @@ def parse_overmatch(userId:str, match:Match, overMatch):
 def parse_match_info(userId:str, match:Match, matchInfo, idx):
     base_info = matchInfo['base_info']
     match.id = base_info['match_id']
-    log.info(f"Match id: {match.id}, article_id: {match.article_id}")
+    log.info(f"Match id: {match.id}")
     normal_score = base_info['normal_score']
     startTime = base_info['start_time']
     match.match_date = datetime.datetime.fromtimestamp(startTime)
@@ -248,6 +260,10 @@ def collect_user_match_info():
         except Exception as e:
             # traceback.print_exc()
             log.error("Failed to collect user and match info for user "+str(userId)+": "+traceback.format_exc())
+        try:
+            dbConn.commit()
+        except Exception as e:
+            log.error("Failed to save to db: " + traceback.format_exc())
 
 def collect_user_info():
     for userId, nick_name in USER_ID_DICT2.items():
@@ -257,21 +273,14 @@ def collect_user_info():
             # traceback.print_exc()
             log.error("Failed to collect user info for user "+str(userId)+": "+traceback.format_exc())
 
-def init_db():
-    current_file_dir = pathlib.Path(__file__).parent.absolute()
-    if not os.path.exists(os.path.join(current_file_dir, "../vstation.db")):
-        create_dbs()
-
 
 def main():
-    # init_csv()
-    init_db()
-    collect_user_match_info()
+    if os.getenv("only_run_web", 'False')!='True':
+        collect_user_match_info()
+    server.run()
+
 
 if __name__ == '__main__':
-    create_table_user()
-    collect_user_info()
-    # main()
-
-    # parse_user_predicate_list(32533)
-    # fetchUsers()
+    # create_table_user()
+    # collect_user_info()
+    main()

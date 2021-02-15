@@ -1,32 +1,10 @@
 <html>
   <head>
     <title>V Station</title>
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/css?family=Roboto:300,400" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl" crossorigin="anonymous">
-
-<!--    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"/>-->
-<!--    <link rel="stylesheet" href="{{ url_for('static', filename='mdcharts/css/mdb.min.css') }}"/>-->
-
-    <!-- Font Awesome -->
-<!--    <link-->
-<!--    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css"-->
-<!--    rel="stylesheet"-->
-<!--    />-->
-<!--    &lt;!&ndash; Google Fonts &ndash;&gt;-->
-<!--    <link-->
-<!--    href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"-->
-<!--    rel="stylesheet"-->
-<!--    />-->
-<!--    &lt;!&ndash; MDB &ndash;&gt;-->
-<!--    <link-->
-<!--    href="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/3.2.0/mdb.min.css"-->
-<!--    rel="stylesheet"-->
-<!--    />-->
-
+    <link href="/static/bootstrap_5.0/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl" crossorigin="anonymous">
   </head>
-  <body style="font-family: 'Roboto', sans-serif !important;">
+  <body style="font-family: 'Arial', sans-serif !important;">
   <br>
   <span>User Info</span>
   <table class="table table-striped">
@@ -50,7 +28,12 @@
 
   <br>
   <span>Chart Info</span>
-  <canvas id="myChart" height="50"></canvas>
+  
+    <div style="width: 100%; overflow-x: auto; ">
+        <div style="width: {{len(matchList)*50+200}}px;" >
+            <canvas id="myChart" height="550" width="0" ></canvas>
+        </div>
+    </div>
 
   <br>
   <span>Match Info</span>
@@ -62,6 +45,7 @@
         <th>home_team_name</th>
         <th>score</th>
         <th>away_team_name</th>
+        <th>article_url</th>
       </tr>
     </thead>
     <tbody>
@@ -72,25 +56,22 @@
         <td>{{ match.home_team_name }}</td>
         <td>{{ match.home_team_score }}:{{ match.away_team_score }}</td>
         <td>{{ match.away_team_name }}</td>
+        <td><a href="{{match.article_url}}" target="_blank">Article Link</a></td>
       </tr>
     {% endfor %}
     </tbody>
   </table>
 
-<!--    <script type="text/javascript"  src="{{ url_for('static', filename='mdcharts/js/mdb.min.js') }}"></script>-->
-<!--  <script-->
-<!--  type="text/javascript"-->
-<!--  src="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/3.2.0/mdb.min.js"-->
-<!--&gt;</script>-->
   <script type="text/javascript" src="{{ url_for('static', filename='chartjs/Chart.js') }}" ></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/js/bootstrap.bundle.min.js" integrity="sha384-b5kHyXgcpbZJO/tY9Ul7kGkf1S0CWuKcCD38l8YkeH8z8QjE0GmW1gYU5S9FOnJ0" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.18.1/moment.min.js"></script>
+  <script src="/static/bootstrap_5.0/js/bootstrap.bundle.min.js" integrity="sha384-b5kHyXgcpbZJO/tY9Ul7kGkf1S0CWuKcCD38l8YkeH8z8QjE0GmW1gYU5S9FOnJ0" crossorigin="anonymous"></script>
   <script type="text/javascript" >
+  var rectangleSet = false;
+
   var labels=[
   {% for match in matchList %}
   '{{str(match.match_date)[0:10]}}',
   {% endfor %}
-  ]
+  ];
   var data= [
   {% for match in matchList %}
     {
@@ -98,6 +79,7 @@
         tournament_name:"{{match.tournament_name}}",
         home_team:"{{match.home_team_name}}: {{match.home_team_score}}",
         away_team:"{{match.away_team_name}}: {{match.away_team_score}}",
+        article_url: "{{match.article_url}}",
         predictList:[
         {% for idx, predict in enumerate(match.predictList) %}
             {
@@ -114,9 +96,19 @@
         ]
     },
   {% endfor %}
-  ]
+  ];
+  backgroundColor= [
+  {% for match in matchList %}
+    {% if len(match.predictList)>1 %}
+                'rgba(255, 99, 132, 1)',
+    {% else %}
+        'rgba(75, 192, 192, 1)',
+    {% endif %}
+  {% endfor %}
+  ];
 
-var ctx = document.getElementById('myChart').getContext('2d');
+canvasDom = document.getElementById('myChart')
+var ctx = canvasDom.getContext('2d');
 var myChart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -126,26 +118,63 @@ var myChart = new Chart(ctx, {
             fill: false,
             borderColor:"rgb(75, 192, 192)",
             lineTension:0,
+            backgroundColor: backgroundColor,
             data: data
         }]
     },
     options: {
+        layout: {
+          padding: {
+            top: 100,
+             bottom: 150,
+          }
+       },
         scales: {
             yAxes: [{
                 ticks: {
                     beginAtZero: true,
                     stepSize: 1,
-                    min: 0,
-                    max: 4
+                    min: -2,
+                    max: 2,
                 }
-            }]
+            }],
+            xAxes: [{
+<!--                type: 'linear',-->
+<!--                offset: true,-->
+<!--display: false, -->
+                ticks: {
+<!--                callback: function(){return '11111'},-->
+<!--                    align: 'end',-->
+<!--                        sampleSize: 1,-->
+<!--                        autoSkip: false,-->
+<!--                        labelOffset:100,-->
+<!--                        padding:100,-->
+<!--                    display: false,-->
+<!--                        tickWidth: 5000,-->
+                },
+<!--                afterSetDimensions: function(axes) {-->
+<!--                        axes.maxWidth = 165;-->
+<!--                },-->
+<!--                afterFit: function(scale) {-->
+<!--                     scale.width = 800 //<&#45;&#45; set value as you wish-->
+<!--                  },-->
+<!--                  scaleLabel: {-->
+<!--                   display: true,-->
+<!--                   labelString: 'Match Date',-->
+<!--                },-->
+              }],
         },
-        legendCallback: function(chart) {
-            alert(111);
+        legend: {
+            display: false
         },
         tooltips: {
             // Disable the on-canvas tooltip
             enabled: true,
+             position: "average",
+            tooltipCaretSize: 0,
+            intersect: false,
+            mode: 'nearest',
+            axis: 'x',
             callbacks: {
                 title: function(tooltipItem, data) {
                   return data['labels'][tooltipItem[0]['index']];
@@ -160,7 +189,9 @@ var myChart = new Chart(ctx, {
                         if (predict['play_type'] == '1'){
                             var playTypeStr="正常";
                         }else if(predict['play_type'] == '2'){
-                            var playTypeStr="让球 0.25";
+                            var playTypeStr="让";
+                        }else if(predict['play_type'] == '3'){
+                            var playTypeStr="总";
                         }else{
                             var playTypeStr=predict['play_type'];
                         }
@@ -174,23 +205,33 @@ var myChart = new Chart(ctx, {
                             var isHitStr="No";
                         }
                         labelList.push('is_hit: '+isHitStr)
-                        labelList.push('Home Odds: '+predict['current_left'])
-                        labelList.push('Away Odds: '+predict['current_right'])
-                        labelList.push('Draw Odds: '+predict['current_middle'])
-                        labelList.push('Ovalue: '+predict['ovalue'])
+                        labelList.push('主场赔率: '+predict['current_left'])
+                        labelList.push('客场赔率: '+predict['current_right'])
+                        labelList.push('平局赔率: '+predict['current_middle'])
+                        labelList.push('球数: '+predict['ovalue'])
                     }
                     return labelList
                 },
-<!--                afterLabel: function(tooltipItem, data) {-->
-<!--                  var dataset = data['datasets'][0];-->
-<!--                  var percent = Math.round((dataset['data'][tooltipItem['index']] / dataset["_meta"][0]['total']) * 100)-->
-<!--                  return '(' + percent + '%)';-->
-<!--                }-->
               },
         }
     }
 });
-  </script>
 
-  </body>
+canvasDom.onclick=function(evt){
+    var points = myChart.getElementsAtEventForMode(evt, 'nearest', { intersect: false }, true);
+<!--    var points = myChart.getElementsAtEvent(evt);-->
+    if (points.length){
+        var firstPoint = points[0];
+        var dataIdx = firstPoint._index;
+        var datasetIdx=firstPoint._datasetIndex
+        activeData = myChart.data.datasets[datasetIdx].data[dataIdx];
+        article_url=activeData['article_url']
+        window.open(article_url, '_blank');
+    }
+
+};
+
+
+</script>
+</body>
 </html>

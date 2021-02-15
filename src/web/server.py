@@ -26,7 +26,7 @@ def win_lose_detail():
     userId = request.args.get('userId')
 
     user = fetchUser(userId) #type:User
-    matchList =fetchMatchList(user.nick_name)
+    matchList =fetchMatchList(user.id)
     for match in matchList:
         predictList = fetchPredictList(match.id, user.id)
         match.predictList=predictList
@@ -47,11 +47,13 @@ admin_user = {
 }
 
 def cal_total_hit_cnt(match:Match):
-    total_hit_cnt=0
+    hit_cnt=0
     for predict in match.predictList:
         if predict.is_hit=='1':
-            total_hit_cnt=total_hit_cnt+1
-    return total_hit_cnt
+            hit_cnt=hit_cnt+1
+        elif predict.is_hit=='2' and predict.real_result!='3':
+            hit_cnt=hit_cnt-1
+    return hit_cnt
 
 def convert_tooltip(match:Match):
     labelList=[]
@@ -66,8 +68,10 @@ def convert_tooltip(match:Match):
 
 @app.context_processor
 def send_my_func():
-  return {"cal_total_hit_cnt": cal_total_hit_cnt, "str": str, "enumerate":enumerate}
+  return {"cal_total_hit_cnt": cal_total_hit_cnt, "str": str, "enumerate":enumerate, "len":len}
+
+def run():
+    app.run(debug=True, port=8088)
 
 if __name__ == '__main__':
-    print("os.getcwd(): "+os.getcwd())
-    app.run(debug=True, port=8088)
+    run()

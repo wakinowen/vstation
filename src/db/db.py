@@ -12,7 +12,8 @@ DB_INSERT_STRATEGY_SKIP_INSERT_IF_EXIST="DB_INSERT_STRATEGY_SKIP_INSERT_IF_EXIST
 
 DB_INSERT_STRATEGY=DB_INSERT_STRATEGY_SKIP_INSERT_IF_EXIST
 
-DB_FILE_PATH="I:/Projects/V_Station/vstation.db"
+# DB_FILE_PATH="I:/Projects/V_Station/vstation.db"
+DB_FILE_PATH=os.path.join(CURRENT_DIR, '../../vstation.db')
 
 def createLogger(stdout=True):
     formatter = "%(asctime)s [%(levelname)s]\t%(module)s:%(lineno)d\t%(message)s"
@@ -38,21 +39,24 @@ def commit():
     dbConn.commit()
     dbConn.close()
 
+def init_db():
+    create_dbs()
+
 def get_db_conn():
-    conn = sqlite3.connect(DB_FILE_PATH, check_same_thread=False)
+    global dbConn
+    if not os.path.exists(os.path.join(DB_FILE_PATH)):
+        dbConn = sqlite3.connect(DB_FILE_PATH, check_same_thread=False)
+        init_db()
+    else:
+        dbConn = sqlite3.connect(DB_FILE_PATH, check_same_thread=False)
     atexit.register(commit)
-    return conn
-
-dbConn = get_db_conn()
-dbConn.row_factory = sqlite3.Row
-cursor = dbConn.cursor()
-
-
+    return dbConn
 
 class Match:
     def __init__(self):
         self.id=None
         self.match_date=None
+        self.user_id=None
         self.user_nick_name=None
         self.tournament_name=None
         self.home_team_name=None
@@ -69,9 +73,9 @@ class Predict:
         self.id=None
         self.match_id=None
         self.user_id=None
-        self.play_type = None  # 1: 正常;  2:让球 0.25;
+        self.play_type = None  # 1: 正常;  2:让球; 3:总
         self.predict_result = None  # 1: home team win; 2: away team win
-        self.real_result = None  # 1: home team win; 2: away team win
+        self.real_result = None  # 1: home team win; 2: away team win; 3: draw
         self.is_hit = None  # 1: hit bang; 2: nope
         self.current_left=None
         self.current_right=None
@@ -98,25 +102,27 @@ def create_dbs():
     create_table_user()
 
 def create_table_match():
-    cursor.execute("drop table match")
+    dbConn.execute("drop table IF EXISTS match")
     create_table_match_sql = """
     create table match(
-        id integer primary key autoincrement,
+        id integer,
         match_date datetime,
+        user_id integer,
         user_nick_name varchar(256),
         home_team_name varchar(256),
         away_team_name varchar(256),
         article_url varchar(256),
         home_team_score varchar(256),
         away_team_score varchar(256),
-        tournament_name varchar(256)
+        tournament_name varchar(256),
+        UNIQUE(id,user_id)
     )
     """
-    cursor.execute(create_table_match_sql)
+    dbConn.execute(create_table_match_sql)
     dbConn.commit()
 
 def create_table_predict():
-    cursor.execute("drop table predict")
+    dbConn.execute("drop table IF EXISTS predict")
     create_table_predict_sql = """
         create table predict(
             id varchar(256) primary key,
@@ -132,11 +138,11 @@ def create_table_predict():
             ovalue varchar(256)
         )
         """
-    cursor.execute(create_table_predict_sql)
+    dbConn.execute(create_table_predict_sql)
     dbConn.commit()
 
 def create_table_user():
-    cursor.execute("drop table user")
+    dbConn.execute("drop table IF EXISTS user")
     create_table_user_sql = """
         create table user(
             id integer primary key autoincrement,
@@ -147,19 +153,12 @@ def create_table_user():
             date datetime
         )
     """
-    cursor.execute(create_table_user_sql)
+    dbConn.execute(create_table_user_sql)
     dbConn.commit()
 
 def save_user(user:User):
-    if DB_INSERT_STRATEGY == DB_INSERT_STRATEGY_DELETE_THEN_INSERT:
-        deleteSql = "delete from user where id=?"
-        execute_sql(deleteSql, [user.id])
-    elif DB_INSERT_STRATEGY == DB_INSERT_STRATEGY_SKIP_INSERT_IF_EXIST:
-        selectSql="select * from user where id=?"
-        result = fetch_all(selectSql, [user.id])
-        if len(result)>0:
-            log.info(f"Skip inserting user id: {user.id}, name: {user.nick_name}")
-            return
+    deleteSql = "delete from user where id=?"
+    execute_sql(deleteSql, [user.id])
 
     sql=f"""
         insert into user 
@@ -224,12 +223,15 @@ def fetchUserList():
 
 def fetchUser(userId):
     sql="select * from User where id=?"
-    userDict = fetch_all(sql, [userId])[0]
-    return convertDictToUser(userDict)
+    userDictList = fetch_all(sql, [userId])
+    user=None
+    if len(userDictList)>0:
+        user = convertDictToUser(userDictList[0])
+    return user
 
-def fetchMatchList(userNickName):
-    sql="select * from match where user_nick_name=? order by match_date"
-    matchDictList = fetch_all(sql, [userNickName])
+def fetchMatchList(userId):
+    sql="select * from match where user_id=? order by match_date desc"
+    matchDictList = fetch_all(sql, [userId])
     matchList = [convertDictToMatch(matchDict) for matchDict in matchDictList]
     return matchList
 
@@ -239,27 +241,35 @@ def fetchPredictList(matchId, userId):
     predictList = [convertDictToPredict(predictDict) for predictDict in predictDictList]
     return predictList
 
+
+def fetchPredictListByUid(userId):
+    sql="select * from predict where user_id=?"
+    predictDictList = fetch_all(sql, [userId])
+    predictList = [convertDictToPredict(predictDict) for predictDict in predictDictList]
+    return predictList
+
 def save_match(match:Match):
     if DB_INSERT_STRATEGY == DB_INSERT_STRATEGY_DELETE_THEN_INSERT:
-        deleteSql = "delete from match where id=?"
-        execute_sql(deleteSql, [match.id])
+        deleteSql = "delete from match where id=? and user_id=?"
+        execute_sql(deleteSql, [match.id], match.user_id)
     elif DB_INSERT_STRATEGY == DB_INSERT_STRATEGY_SKIP_INSERT_IF_EXIST:
-        selectSql="select * from match where id=?"
-        result = fetch_all(selectSql, [match.id])
+        selectSql="select * from match where id=? and user_id=?"
+        result = fetch_all(selectSql, [match.id, match.user_id])
         if len(result)>0:
             log.info(f"Skip inserting match id: {match.id}")
             return
 
     sql = f"""
             insert into match 
-            (id,match_date,user_nick_name,tournament_name,home_team_name,away_team_name,
+            (id,match_date,user_id,user_nick_name,tournament_name,home_team_name,away_team_name,
             article_url,home_team_score,away_team_score)
-            values(?,?,?,?,?,?,?,?,?)
+            values(?,?,?,?,?,?,?,?,?,?)
             """
     execute_sql(sql,
        [
            match.id,
            match.match_date,
+           match.user_id,
            match.user_nick_name,
            match.tournament_name,
            match.home_team_name,
@@ -332,6 +342,10 @@ def fetch_all(sql, param=None):
     except Exception as e:
         log.error("Exception: "+traceback.format_exc())
         raise e
+
+dbConn = get_db_conn()
+dbConn.row_factory = sqlite3.Row
+cursor = dbConn.cursor()
 
 if __name__ == '__main__':
     create_dbs()
