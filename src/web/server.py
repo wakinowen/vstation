@@ -1,14 +1,9 @@
-from flask import Flask, request, jsonify, render_template
-import os
-# from api.v1 import config
-# from api.v1.user import user
+from flask import Flask, request, render_template
 from flask_bootstrap import Bootstrap
 from db.db import *
 
 app = Flask(__name__)
 Bootstrap(app)
-# app.config.from_object(config)
-# app.register_blueprint(user,url_prefix='/user')
 
 def create_app():
   app = Flask(__name__)
@@ -26,7 +21,7 @@ def win_lose_detail():
     userId = request.args.get('userId')
 
     user = fetchUser(userId) #type:User
-    matchList =fetchMatchList(user.id)
+    matchList =fetchMatchListWithinDate(user.id, years=1)
     for match in matchList:
         predictList = fetchPredictList(match.id, user.id)
         match.predictList=predictList

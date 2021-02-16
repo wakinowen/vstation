@@ -229,8 +229,20 @@ def fetchUser(userId):
         user = convertDictToUser(userDictList[0])
     return user
 
-def fetchMatchList(userId):
-    sql="select * from match where user_id=? order by match_date desc"
+def fetchMatchListWithinDate(userId, years=None):
+    if not years:
+        sql="select * from match where user_id=? order by match_date desc"
+    else:
+        sql = f"select * from match where user_id=? and match_date >= date('now','-{years} year') order by match_date desc"
+    matchDictList = fetch_all(sql, [userId])
+    matchList = [convertDictToMatch(matchDict) for matchDict in matchDictList]
+    return matchList
+
+def fetchMatchList(userId, limit=None):
+    if not limit:
+        sql="select * from match where user_id=? order by match_date desc"
+    else:
+        sql = f"select * from match where user_id=? order by match_date desc limit {limit}"
     matchDictList = fetch_all(sql, [userId])
     matchList = [convertDictToMatch(matchDict) for matchDict in matchDictList]
     return matchList

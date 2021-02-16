@@ -1,21 +1,14 @@
-import pathlib
+import datetime
 import urllib
 
 import requests
 import urllib3
-import csv
-import os
-import logging
-import sys
-import datetime
-import traceback
+
 from db.db import *
 from web import server
 
 REQUEST_CONN_TIMEOUT = 10
 REQUEST_READ_TIMEOUT = 60 * 60
-HIT_RATE_RECORD_DIR=os.path.join(CURRENT_DIR, "../records")
-HIT_RATE_RECORD_FILE_PATH=os.path.join(HIT_RATE_RECORD_DIR, "hit_rate.csv")
 
 SEARCH_URSER_URL="https://mapi.shemen365.com/search/common?type=user&option=%s"
 LIST_USER_PREDICT_URL="https://mapi.shemen365.com/user/article/predict/list?uid=%s&page=%s"
@@ -146,49 +139,6 @@ def parse_match_info(userId:str, match:Match, matchInfo, idx):
     save_predict(matchPredict)
     # match.predict.append(matchPredict)
 
-
-def read_csv():
-    current_hit_rate_record_file_path = get_csv_file_path()
-    with open(current_hit_rate_record_file_path, 'r') as csvfile:
-        reader = csv.DictReader(csvfile, delimiter=',', quotechar='|', fieldnames = CSV_FIELDS)
-        next(reader, None)
-        for row in reader:
-            print(str(row))
-
-def read_last_hit_info_by_name(nick_name):
-    current_hit_rate_record_file_path = get_csv_file_path()
-    with open(current_hit_rate_record_file_path, 'r') as csvfile:
-        reader = csv.DictReader(csvfile, delimiter=',', quotechar='|', fieldnames = CSV_FIELDS)
-        for row in reversed(list(reader)):
-            if row["Name"]==nick_name:
-                return row
-        return None
-
-def read_last_hit_info():
-    current_hit_rate_record_file_path = get_csv_file_path()
-    with open(current_hit_rate_record_file_path, 'r') as csvfile:
-        reader = csv.DictReader(csvfile, delimiter=',', quotechar='|', fieldnames = CSV_FIELDS)
-        for row in reader: pass
-        return row
-
-def write_csv(row_list):
-    with open(get_csv_file_path(), 'a', newline='') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',', quotechar='|')
-        writer.writerow(row_list)
-
-def get_csv_file_path():
-    current_hit_rate_record_file_path = HIT_RATE_RECORD_FILE_PATH
-    return current_hit_rate_record_file_path
-
-def init_csv():
-    csv_file_path = get_csv_file_path()
-    if os.path.exists(csv_file_path):
-        return
-    os.makedirs(HIT_RATE_RECORD_DIR, exist_ok=True)
-    with open(csv_file_path, 'w', newline='') as outcsv:
-        writer = csv.DictWriter(outcsv, fieldnames = CSV_FIELDS)
-        writer.writeheader()
-
 def httpGet(url, proxy=None, allowedStatusCodes=[], **kwargs):
     res = requests.get(url, timeout=(REQUEST_CONN_TIMEOUT, REQUEST_READ_TIMEOUT), verify=False, proxies=proxy, **kwargs)
     if len(allowedStatusCodes) > 0:
@@ -203,13 +153,6 @@ def httpPost(url, json, proxy=None, allowedStatusCodes=[], **kwargs):
             raise Exception(f"Response status code is {res.status_code}, not in the allowed list: {allowedStatusCodes}")
     return res
 
-
-def process(nick_name, date, hit_rate, hit_cnt, total_cnt):
-    lastRow = read_last_hit_info_by_name(nick_name)
-    if lastRow is not None and lastRow["Total_Cnt"]==total_cnt:
-        log.info("This record has been recorded, skip")
-        return
-    write_csv([nick_name, date, hit_rate, hit_cnt, total_cnt])
 
 def searchUser(userName):
     userName= encodeUri(userName)
