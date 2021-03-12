@@ -39,7 +39,12 @@ USER_ID_DICT2 = {"32533": '阿拉里奥',
                  "28639": '李科林',
                  "13216": '莫妮卡',
                  "28647": '布拉克',
-                 "25281": '马尔科-加西亚'
+                 "25281": '马尔科-加西亚',
+                  "2448":  '格里克',
+                 '2050':'杰克老狼',
+                 '11114':'彼得·拉洛尔' ,
+                 '2048':'马绍尔',
+                 '10189':"海瑟薇"
                  }
 
 USER_ID_LIST = {32533, 1331, 15271, 14882, 22392, 157, 2047, 2010, 2012, 2267, 4833, 29654, 2051, 15884, 28695, 28639,
@@ -82,7 +87,7 @@ def update_user(user:User):
 def _collect_user_info(userId):
     totalOverMatchList=[]
     userInited=False
-    for pageNum in range(1,4):
+    for pageNum in range(1,3):
         listUserPredictUrl = LIST_USER_PREDICT_URL % (userId, str(pageNum))
         res = httpGet(listUserPredictUrl)
         log.info(f"User predict response: {res.text}")
@@ -180,8 +185,9 @@ def fetchUserIdDict(userNames):
     return userIdDict
 
 def fetchUsers():
-    userNames=["阿拉里奥", "乌戈", "克鲁格", "海蒂", "伊安佩恩","季风","乔伊娜","杰西卡","塞缪尔","戈莱奇",
-               "罗德里戈","荷兰小飞侠","格拉索频道","洛维","龙扬","李科林","莫妮卡","布拉克","马尔科-加西亚","阿拉里奥"]
+    # userNames=["阿拉里奥", "乌戈", "克鲁格", "海蒂", "伊安佩恩","季风","乔伊娜","杰西卡","塞缪尔","戈莱奇",
+    #            "罗德里戈","荷兰小飞侠","格拉索频道","洛维","龙扬","李科林","莫妮卡","布拉克","马尔科-加西亚","阿拉里奥"]
+    userNames=["格里克","杰克老狼","彼得·拉洛尔","卢卡","马绍尔","巴尔巴拉","海瑟薇"]
     userIdDict=fetchUserIdDict(userNames)
     log.info(f"userIds: {userIdDict}")
 
@@ -226,4 +232,6 @@ def main():
 if __name__ == '__main__':
     # create_table_user()
     # collect_user_info()
+
+    # fetchUsers()
     main()

@@ -46,6 +46,7 @@
         <th>score</th>
         <th>away_team_name</th>
         <th>article_url</th>
+        <th>odds_url</th>
       </tr>
     </thead>
     <tbody>
@@ -57,6 +58,7 @@
         <td>{{ match.home_team_score }}:{{ match.away_team_score }}</td>
         <td>{{ match.away_team_name }}</td>
         <td><a href="{{match.article_url}}" target="_blank">Article Link</a></td>
+        <td><a href="https://m.shemen365.com/odds/list/detailNew?match_id={{match.id}}&sport_id=1&book_id=31&type_id=2&top_bar_style=2" target="_blank">Odds Link</a></td>
       </tr>
     {% endfor %}
     </tbody>
@@ -80,6 +82,7 @@
         home_team:"{{match.home_team_name}}: {{match.home_team_score}}",
         away_team:"{{match.away_team_name}}: {{match.away_team_score}}",
         article_url: "{{match.article_url}}",
+        odds_url: "https://m.shemen365.com/odds/list/detailNew?match_id={{match.id}}&sport_id=1&book_id=31&type_id=2&top_bar_style=2",
         predictList:[
         {% for idx, predict in enumerate(match.predictList) %}
             {
@@ -225,8 +228,8 @@ canvasDom.onclick=function(evt){
         var dataIdx = firstPoint._index;
         var datasetIdx=firstPoint._datasetIndex
         activeData = myChart.data.datasets[datasetIdx].data[dataIdx];
-        article_url=activeData['article_url']
-        window.open(article_url, '_blank');
+        window.open(activeData['article_url'], '_blank');
+        window.open(activeData['odds_url'], '_blank');
     }
 
 };

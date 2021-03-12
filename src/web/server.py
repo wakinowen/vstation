@@ -46,7 +46,7 @@ def cal_total_hit_cnt(match:Match):
     for predict in match.predictList:
         if predict.is_hit=='1':
             hit_cnt=hit_cnt+1
-        elif predict.is_hit=='2' and predict.real_result!='3':
+        elif predict.is_hit=='2': #and predict.real_result!='3':
             hit_cnt=hit_cnt-1
     return hit_cnt
 
